@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WSS Standings</title>
+<style>
+  :root{
+    --bg:#0b0e12; --panel:#13181f; --row:#161c24; --row2:#12171e; --line:#252d38;
+    --text:#e7eaee; --muted:#8a94a1; --gold:#f5c451; --silver:#cdd5dd; --bronze:#d28a4f;
+    --you:#2dd4bf; --signal:#ff5436;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:radial-gradient(1200px 500px at 80% -10%, rgba(255,84,54,.10), transparent 60%), var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;}
+  .wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px;}
+
+  header{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 24px;margin-bottom:20px;}
+  .brand{flex:1 1 320px;min-width:240px;}
+  .eyebrow{font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--muted);
+    display:flex;align-items:center;gap:9px;margin-bottom:6px;}
+  .eyebrow::before{content:"";width:22px;height:2px;background:var(--signal);display:inline-block;}
+  #title{width:100%;background:transparent;border:none;color:var(--text);font-size:30px;font-weight:800;
+    letter-spacing:-.01em;padding:0;line-height:1.1;}
+  #title:focus{outline:none;}
+  #title[readonly]{cursor:default;}
+
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  button{font-family:inherit;cursor:pointer;}
+  .btn{background:var(--panel);color:var(--text);border:1px solid var(--line);padding:9px 13px;
+    border-radius:9px;font-size:13px;font-weight:600;transition:border-color .15s,background .15s,transform .05s;}
+  .btn:hover{border-color:#3a4554;background:#1a212a;}
+  .btn:active{transform:translateY(1px);}
+  .btn.primary{background:var(--signal);border-color:var(--signal);color:#1a0a06;}
+  .btn.primary:hover{background:#ff6a50;border-color:#ff6a50;}
+  .btn.save{background:var(--you);border-color:var(--you);color:#06201d;}
+  .btn.save:hover{background:#4ee0ce;border-color:#4ee0ce;}
+  .btn:disabled{opacity:.4;cursor:default;}
+  .btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--you);outline-offset:2px;}
+
+  .pill{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    padding:5px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--panel);}
+  .pill.edit{color:var(--you);border-color:rgba(45,212,191,.4);}
+  .pill.unsaved{color:var(--gold);border-color:rgba(245,196,81,.4);}
+  .pill.saved{color:#7ddc8a;border-color:rgba(125,220,138,.4);}
+
+  .rule{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);
+    border-radius:11px;padding:11px 14px;margin-bottom:14px;font-size:13px;color:var(--muted);}
+  .rule strong{color:var(--text);}
+  .rule select{background:#0e131a;color:var(--text);border:1px solid var(--line);border-radius:7px;
+    padding:5px 8px;font:inherit;font-weight:700;}
+  .rule .spacer{flex:1;}
+
+  .board{border:1px solid var(--line);border-radius:14px;overflow:auto;background:var(--panel);}
+  table{border-collapse:separate;border-spacing:0;width:100%;min-width:540px;}
+  th,td{padding:0;}
+  thead th{position:sticky;top:0;z-index:5;background:#0f141b;font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--muted);font-weight:700;text-align:center;height:46px;
+    border-bottom:1px solid var(--line);white-space:nowrap;}
+  thead th.left{text-align:left;}
+
+  .c-pos{width:54px;min-width:54px;position:sticky;left:0;z-index:6;background:inherit;}
+  .c-name{width:186px;min-width:186px;position:sticky;left:54px;z-index:6;background:inherit;
+    box-shadow:8px 0 8px -8px rgba(0,0,0,.6);}
+  .c-total{width:92px;min-width:92px;position:sticky;right:0;z-index:6;background:inherit;
+    box-shadow:-8px 0 8px -8px rgba(0,0,0,.6);}
+  thead .c-pos,thead .c-name,thead .c-total{z-index:7;}
+  .c-round{width:84px;min-width:84px;}
+
+  tbody tr{background:var(--row);}
+  tbody tr:nth-child(even){background:var(--row2);}
+  tbody tr td{height:50px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr .c-pos,tbody tr .c-name,tbody tr .c-total{background:var(--row);}
+  tbody tr:nth-child(even) .c-pos,tbody tr:nth-child(even) .c-name,tbody tr:nth-child(even) .c-total{background:var(--row2);}
+
+  .pos{font-size:16px;font-weight:800;color:var(--muted);position:relative;}
+  tr[data-rank="1"] .pos{color:var(--gold);}
+  tr[data-rank="2"] .pos{color:var(--silver);}
+  tr[data-rank="3"] .pos{color:var(--bronze);}
+  .c-pos::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:2px;background:transparent;}
+  tr[data-rank="1"] .c-pos::before{background:var(--gold);}
+  tr[data-rank="2"] .c-pos::before{background:var(--silver);}
+  tr[data-rank="3"] .c-pos::before{background:var(--bronze);}
+
+  .namecell{display:flex;align-items:center;gap:6px;padding:0 8px 0 12px;}
+  .name-in{flex:1;min-width:0;background:transparent;border:none;color:inherit;font:inherit;
+    font-weight:600;font-size:14px;padding:4px 2px;}
+  .name-in:focus{outline:none;background:#0d1219;border-radius:5px;}
+  .name-in[readonly]{cursor:default;}
+  .del{background:none;border:none;color:#3a4453;font-size:15px;line-height:1;padding:2px 5px;border-radius:5px;}
+  .del:hover{color:var(--signal);}
+
+  .pt{width:62px;height:34px;text-align:center;background:#0e131a;border:1px solid transparent;border-radius:7px;
+    color:var(--text);font:inherit;font-weight:600;font-variant-numeric:tabular-nums;}
+  .pt:hover{border-color:var(--line);}
+  .pt:focus{outline:none;border-color:var(--you);background:#0c1117;}
+  .pt[readonly]{background:transparent;border-color:transparent;cursor:default;}
+  .pt[readonly]:hover{border-color:transparent;}
+  .pt.dropped{color:#5b6573;text-decoration:line-through;background:transparent;}
+  .pt::-webkit-outer-spin-button,.pt::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .pt[type=number]{-moz-appearance:textfield;}
+
+  .rhead{display:flex;flex-direction:column;align-items:center;gap:1px;padding:0 4px;}
+  .rname{width:74px;text-align:center;background:transparent;border:none;color:var(--text);font:inherit;
+    font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 0;}
+  .rname:focus{outline:none;background:#0d1219;border-radius:5px;}
+  .rname[readonly]{cursor:default;}
+  .rnum{font-size:9px;color:var(--muted);letter-spacing:.18em;display:flex;gap:5px;align-items:center;}
+  .rdel{background:none;border:none;color:#3a4453;font-size:12px;padding:0;}
+  .rdel:hover{color:var(--signal);}
+
+  .total{font-size:18px;font-weight:800;}
+  tr[data-rank="1"] .total{color:var(--gold);}
+
+  .addbtn{width:100%;height:46px;background:transparent;border:none;color:var(--muted);font-size:13px;font-weight:600;}
+  .addbtn:hover{color:var(--text);background:#1a212a;}
+
+  /* edit-mode visibility: hidden unless <body class="editing"> */
+  .edit-only{display:none !important;}
+  body.editing .edit-only{display:inline-flex !important;}
+  body.editing td .edit-only{display:flex !important;}
+  body.editing .addbtn{display:block !important;}
+
+  .empty{padding:46px 16px;text-align:center;color:var(--muted);}
+  .help{margin-top:14px;font-size:12.5px;color:var(--muted);line-height:1.6;}
+  .help b{color:#aeb7c2;font-weight:600;}
+
+  .paste{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;}
+  .paste textarea{width:100%;height:110px;resize:vertical;background:#0e131a;color:var(--text);
+    border:1px solid var(--line);border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;}
+  .paste .ptitle{font-size:13px;font-weight:700;margin-bottom:4px;}
+  .paste .phint{font-size:12px;color:var(--muted);margin-bottom:9px;line-height:1.5;}
+  .paste .prow{display:flex;gap:8px;margin-top:10px;}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
+  @media (max-width:560px){#title{font-size:24px;}.wrap{padding:18px 12px 50px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="eyebrow">World Sim Series · Assetto Corsa</div>
+      <input id="title" value="Championship Standings" readonly spellcheck="false">
+    </div>
+    <div class="controls">
+      <span class="pill" id="status">Loading…</span>
+      <button class="btn" id="unlockBtn">Unlock editing</button>
+      <button class="btn edit-only" id="refreshBtn">Refresh</button>
+      <button class="btn save edit-only" id="saveBtn" disabled>Save changes</button>
+      <button class="btn edit-only" id="lockBtn">Lock</button>
+    </div>
+  </header>
+
+  <div class="rule">
+    <span id="ruleText"></span>
+    <span class="edit-only" style="gap:8px;align-items:center;">
+      Count <strong>best</strong>
+      <select id="bestOf"></select>
+      <strong>of <span id="roundCount">0</span></strong>
+    </span>
+    <span class="spacer"></span>
+    <button class="btn edit-only" id="addRound">+ Round</button>
+    <button class="btn edit-only" id="pasteToggle">Paste data</button>
+  </div>
+
+  <div class="board">
+    <table>
+      <thead><tr id="headRow"></tr></thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
+
+  <div class="paste edit-only" id="pastePanel" style="display:none;">
+    <div class="ptitle">Paste from a spreadsheet or results page</div>
+    <div class="phint">One driver per line: name first, then points per round, separated by tabs or commas.
+      A header line with round/track names is optional. This replaces the current table.</div>
+    <textarea id="pasteBox" placeholder="Ergi, 25, 18, 25, 12&#10;Rival, 18, 25, 15, 25"></textarea>
+    <div class="prow">
+      <button class="btn primary" id="pasteApply">Load this data</button>
+      <button class="btn" id="pasteCancel">Cancel</button>
+    </div>
+  </div>
+
+  <div class="help">
+    <b>Public view:</b> everyone can see the standings. <b>Editing</b> is locked behind a shared password —
+    click <b>Unlock editing</b> and enter it to add rounds, type points, and <b>Save changes</b>.
+    The lowest scores that don't count are <span style="text-decoration:line-through;color:#5b6573">struck through</span> automatically.
+  </div>
+
+</div>
+
+<script>
+/* =====================================================================
+   Shared WSS standings board.
+   - GET  /.netlify/functions/standings        -> read standings (public)
+   - POST /.netlify/functions/standings         -> save (needs password header)
+   - GET  /.netlify/functions/standings?check=1 -> verify password
+   The password is checked on the server; it is never stored in this file.
+   ===================================================================== */
+const API = "/.netlify/functions/standings";
+
+let uid = 1; const newId = () => "id" + (uid++);
+const APP = { state:null, canEdit:false, pw:"", dirty:false };
+
+// remember the password for this browser tab only (so a refresh keeps you in)
+function rememberPw(p){ try{ sessionStorage.setItem("wss_pw", p); }catch(e){} }
+function recallPw(){ try{ return sessionStorage.getItem("wss_pw") || ""; }catch(e){ return ""; } }
+function forgetPw(){ try{ sessionStorage.removeItem("wss_pw"); }catch(e){} }
+
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const el = id => document.getElementById(id);
+
+function setStatus(text, kind){
+  const s = el("status");
+  s.textContent = text;
+  s.className = "pill" + (kind ? " " + kind : "");
+}
+function setDirty(d){
+  APP.dirty = d;
+  el("saveBtn").disabled = !d;
+  if(APP.canEdit) setStatus(d ? "Editing · unsaved" : "Editing", d ? "unsaved" : "edit");
+}
+
+/* ---------- scoring ---------- */
+function computeRow(driver){
+  const rounds = APP.state.rounds;
+  const vals = rounds.map(r => ({ id:r.id, v: Number(driver.points[r.id]) || 0 }));
+  const n = rounds.length;
+  const keep = (APP.state.bestOf && APP.state.bestOf < n) ? APP.state.bestOf : n;
+  const order = [...vals].sort((a,b)=> a.v - b.v);
+  const dropped = new Set(order.slice(0, n - keep).map(x=>x.id));
+  let total = 0; vals.forEach(x=>{ if(!dropped.has(x.id)) total += x.v; });
+  return { total, dropped };
+}
+function standings(){
+  return APP.state.drivers
+    .map(d => ({ d, ...computeRow(d) }))
+    .sort((a,b)=> b.total - a.total || a.d.name.localeCompare(b.d.name));
+}
+
+/* ---------- render ---------- */
+function render(){
+  const ro = APP.canEdit ? "" : "readonly";
+  const s = APP.state;
+  document.body.classList.toggle("editing", APP.canEdit);
+
+  el("title").value = s.title || "";
+  el("title").readOnly = !APP.canEdit;
+  el("roundCount").textContent = s.rounds.length;
+
+  // scoring rule text (always visible) + selector (edit only)
+  const keep = (s.bestOf && s.bestOf < s.rounds.length) ? s.bestOf : s.rounds.length;
+  el("ruleText").textContent = s.rounds.length
+    ? `Counting best ${keep} of ${s.rounds.length} rounds`
+    : "No rounds yet";
+  let opt = ""; for(let i=1;i<=Math.max(s.rounds.length,1);i++){ opt += `<option value="${i}" ${i===s.bestOf?'selected':''}>${i}</option>`; }
+  el("bestOf").innerHTML = opt;
+
+  // header
+  let h = `<th class="c-pos">POS</th><th class="c-name left" style="padding-left:12px">Driver</th>`;
+  s.rounds.forEach((r,i)=>{
+    h += `<th class="c-round"><div class="rhead">
+            <input class="rname" data-rid="${r.id}" value="${esc(r.name)}" ${ro} spellcheck="false">
+            <span class="rnum">R${i+1}<button class="rdel edit-only" data-rdel="${r.id}" title="Remove round">✕</button></span>
+          </div></th>`;
+  });
+  h += `<th class="c-total">PTS</th>`;
+  el("headRow").innerHTML = h;
+
+  // body
+  const rows = standings();
+  let b = "";
+  if(rows.length === 0){
+    b = `<tr><td class="empty" colspan="${s.rounds.length+3}">${
+      APP.canEdit ? "Add a round and a driver, or use “Paste data”." : "No standings posted yet."
+    }</td></tr>`;
+  } else {
+    rows.forEach((row,idx)=>{
+      const d = row.d, rank = idx+1;
+      let cells = "";
+      s.rounds.forEach(r=>{
+        const dropped = row.dropped.has(r.id) ? " dropped" : "";
+        const v = (d.points[r.id]===0 || d.points[r.id]) ? d.points[r.id] : "";
+        cells += `<td><input class="pt mono${dropped}" type="number" min="0" inputmode="numeric"
+                    data-did="${d.id}" data-rid="${r.id}" value="${v}" ${ro}></td>`;
+      });
+      b += `<tr data-rank="${rank}" data-did="${d.id}">
+              <td class="c-pos"><span class="pos mono">${rank}</span></td>
+              <td class="c-name"><div class="namecell">
+                <input class="name-in" data-name="${d.id}" value="${esc(d.name)}" ${ro} spellcheck="false">
+                <button class="del edit-only" data-del="${d.id}" title="Remove driver">✕</button>
+              </div></td>
+              ${cells}
+              <td class="c-total"><span class="total mono">${row.total}</span></td>
+            </tr>`;
+    });
+  }
+  // add-driver row (edit only)
+  b += `<tr class="addrow"><td colspan="${s.rounds.length+3}" style="padding:0">
+          <button class="addbtn edit-only" id="addDriver">+ Add driver</button></td></tr>`;
+  el("body").innerHTML = b;
+}
+
+// live total for one row while typing (no re-sort → focus stays)
+function updateRowLive(did){
+  const d = APP.state.drivers.find(x=>x.id===did); if(!d) return;
+  const { total, dropped } = computeRow(d);
+  const tr = el("body").querySelector(`tr[data-did="${did}"]`); if(!tr) return;
+  tr.querySelector(".total").textContent = total;
+  tr.querySelectorAll(".pt").forEach(inp=> inp.classList.toggle("dropped", dropped.has(inp.dataset.rid)));
+}
+
+/* ---------- server ---------- */
+async function loadBoard(){
+  setStatus("Loading…");
+  try{
+    const r = await fetch(API, { headers:{ "accept":"application/json" } });
+    APP.state = await r.json();
+    if(!APP.state.rounds) APP.state.rounds = [];
+    if(!APP.state.drivers) APP.state.drivers = [];
+    setStatus(APP.canEdit ? "Editing" : "Read-only", APP.canEdit ? "edit" : "");
+    render();
+  }catch(e){
+    setStatus("Offline");
+    el("body").innerHTML = `<tr><td class="empty" colspan="9">
+      Couldn’t reach the server. This board only works once it’s deployed to Netlify
+      (the live preview here can’t run the backend).</td></tr>`;
+  }
+}
+async function saveBoard(){
+  setStatus("Saving…");
+  try{
+    const r = await fetch(API, {
+      method:"POST",
+      headers:{ "content-type":"application/json", "x-edit-password":APP.pw },
+      body: JSON.stringify(APP.state)
+    });
+    if(r.status === 401){ setStatus("Wrong password", "unsaved"); alert("That password was rejected by the server."); return; }
+    if(!r.ok) throw new Error();
+    setDirty(false); setStatus("Saved ✓", "saved");
+    setTimeout(()=>{ if(!APP.dirty && APP.canEdit) setStatus("Editing","edit"); }, 1800);
+  }catch(e){ setStatus("Save failed", "unsaved"); alert("Couldn’t save. Check your connection and try again."); }
+}
+async function verifyPw(pw){
+  try{
+    const r = await fetch(API + "?check=1", { headers:{ "x-edit-password":pw } });
+    return r.ok;
+  }catch(e){ return false; }
+}
+
+/* ---------- unlock / lock ---------- */
+async function unlock(){
+  const pw = prompt("Enter the editor password:");
+  if(pw === null) return;
+  setStatus("Checking…");
+  if(await verifyPw(pw)){
+    APP.pw = pw; APP.canEdit = true; rememberPw(pw);
+    el("unlockBtn").style.display = "none";
+    setStatus("Editing", "edit");
+    render();
+  } else {
+    setStatus("Read-only");
+    alert("Wrong password.");
+  }
+}
+function lock(){
+  if(APP.dirty && !confirm("You have unsaved changes. Lock anyway?")) return;
+  APP.canEdit = false; APP.pw = ""; APP.dirty = false; forgetPw();
+  el("unlockBtn").style.display = "";
+  el("saveBtn").disabled = true;
+  setStatus("Read-only");
+  render();
+}
+
+/* ---------- events ---------- */
+el("title").addEventListener("input", e=>{ if(APP.canEdit){ APP.state.title = e.target.value; setDirty(true); } });
+
+el("body").addEventListener("input", e=>{
+  if(!APP.canEdit) return;
+  const t = e.target;
+  if(t.classList.contains("pt")){
+    const d = APP.state.drivers.find(x=>x.id===t.dataset.did);
+    d.points[t.dataset.rid] = t.value === "" ? null : Number(t.value);
+    updateRowLive(t.dataset.did); setDirty(true);
+  } else if(t.classList.contains("name-in")){
+    APP.state.drivers.find(x=>x.id===t.dataset.name).name = t.value; setDirty(true);
+  }
+});
+el("body").addEventListener("change", e=>{ if(APP.canEdit && e.target.classList.contains("pt")) render(); });
+el("body").addEventListener("focusout", e=>{ if(APP.canEdit && e.target.classList.contains("pt")) render(); });
+
+el("body").addEventListener("click", e=>{
+  if(!APP.canEdit) return;
+  if(e.target.id === "addDriver"){
+    const name = prompt("Driver name:"); if(name===null) return;
+    const points = {}; APP.state.rounds.forEach(r=> points[r.id]=null);
+    APP.state.drivers.push({ id:newId(), name:name||"New driver", points }); setDirty(true); render(); return;
+  }
+  const del = e.target.closest(".del");
+  if(del){
+    const d = APP.state.drivers.find(x=>x.id===del.dataset.del);
+    if(confirm(`Remove ${d.name}?`)){ APP.state.drivers = APP.state.drivers.filter(x=>x.id!==del.dataset.del); setDirty(true); render(); }
+  }
+});
+
+el("headRow").addEventListener("input", e=>{
+  if(APP.canEdit && e.target.classList.contains("rname")){
+    APP.state.rounds.find(r=>r.id===e.target.dataset.rid).name = e.target.value; setDirty(true);
+  }
+});
+el("headRow").addEventListener("click", e=>{
+  if(!APP.canEdit) return;
+  const rdel = e.target.closest(".rdel");
+  if(rdel && confirm("Remove this round?")){
+    APP.state.rounds = APP.state.rounds.filter(r=>r.id!==rdel.dataset.rdel);
+    APP.state.drivers.forEach(d=> delete d.points[rdel.dataset.rdel]);
+    setDirty(true); render();
+  }
+});
+
+el("addRound").addEventListener("click", ()=>{
+  const name = prompt("Round / track name:", "Round "+(APP.state.rounds.length+1)); if(name===null) return;
+  const r = { id:newId(), name:name||("Round "+(APP.state.rounds.length+1)) };
+  APP.state.rounds.push(r); APP.state.drivers.forEach(d=> d.points[r.id]=null);
+  if(!APP.state.bestOf || APP.state.bestOf > APP.state.rounds.length) APP.state.bestOf = APP.state.rounds.length;
+  setDirty(true); render();
+});
+el("bestOf").addEventListener("change", e=>{ APP.state.bestOf = Number(e.target.value); setDirty(true); render(); });
+
+el("unlockBtn").addEventListener("click", unlock);
+el("lockBtn").addEventListener("click", lock);
+el("saveBtn").addEventListener("click", saveBoard);
+el("refreshBtn").addEventListener("click", async ()=>{
+  if(APP.dirty && !confirm("Refreshing will discard your unsaved changes. Continue?")) return;
+  await loadBoard();
+});
+
+// paste import
+el("pasteToggle").addEventListener("click", ()=>{
+  const p = el("pastePanel"); p.style.display = p.style.display==="none" ? "block" : "none";
+});
+el("pasteCancel").addEventListener("click", ()=> el("pastePanel").style.display="none");
+el("pasteApply").addEventListener("click", ()=>{
+  const text = el("pasteBox").value.trim(); if(!text){ el("pastePanel").style.display="none"; return; }
+  const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const split = l => l.split(/\t|,|;|\s{2,}/).map(s=>s.trim()).filter(s=>s!=="");
+  const first = split(lines[0]);
+  const looksHeader = first.slice(1).some(c=> isNaN(Number(c)));
+  let header = null, start = 0;
+  if(looksHeader){ header = first.slice(1); start = 1; }
+  let maxCols = 0; for(let i=start;i<lines.length;i++) maxCols = Math.max(maxCols, split(lines[i]).length-1);
+  if(maxCols < 1){ alert("Couldn’t find any points in that text."); return; }
+  APP.state.rounds = [];
+  for(let c=0;c<maxCols;c++) APP.state.rounds.push({ id:newId(), name:(header && header[c]) ? header[c] : ("R"+(c+1)) });
+  APP.state.drivers = [];
+  for(let i=start;i<lines.length;i++){
+    const cells = split(lines[i]); if(cells.length<2) continue;
+    const points = {};
+    APP.state.rounds.forEach((r,c)=>{ const v = cells[c+1]; points[r.id] = (v===undefined||v==="") ? null : Number(v)||0; });
+    APP.state.drivers.push({ id:newId(), name:cells[0], points });
+  }
+  if(!APP.state.bestOf || APP.state.bestOf > APP.state.rounds.length) APP.state.bestOf = APP.state.rounds.length;
+  el("pasteBox").value = ""; el("pastePanel").style.display="none";
+  setDirty(true); render();
+});
+
+window.addEventListener("beforeunload", e=>{ if(APP.dirty){ e.preventDefault(); e.returnValue=""; } });
+
+/* ---------- boot ---------- */
+(async function init(){
+  await loadBoard();
+  const saved = recallPw();           // still unlocked from earlier this session?
+  if(saved && await verifyPw(saved)){
+    APP.pw = saved; APP.canEdit = true;
+    el("unlockBtn").style.display = "none";
+    setStatus("Editing", "edit"); render();
+  }
+})();
+</script>
+</body>
+</html>
